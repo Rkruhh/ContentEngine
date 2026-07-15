@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #e4e9ef;
+  --bg-elevated: #f4f6f9;
+  --ink: #12161c;
+  --muted: #5a6573;
+  --line: #c5ced9;
+  --accent: #0b6e6a;
+  --accent-soft: #d4efed;
+  --warn: #a33b1f;
+  --ok: #1f6b3a;
+  --font-display: "Sora", sans-serif;
+  --font-body: "Source Serif 4", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse 80% 50% at 10% -10%, #c9d8e6 0%, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, #c5e0dc 0%, transparent 45%),
+    linear-gradient(180deg, #dfe5ec 0%, var(--bg) 40%, #d8dee6 100%);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.prose-draft {
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: var(--ink);
+}
+
+.prose-draft h1,
+.prose-draft h2,
+.prose-draft h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 1.4em 0 0.5em;
+}
+
+.prose-draft h1 {
+  font-size: 1.6rem;
+}
+.prose-draft h2 {
+  font-size: 1.3rem;
+}
+.prose-draft h3 {
+  font-size: 1.1rem;
+}
+
+.prose-draft p {
+  margin: 0.75em 0;
+}
+
+.prose-draft ul,
+.prose-draft ol {
+  margin: 0.75em 0;
+  padding-left: 1.4em;
+}
+
+.prose-draft li {
+  margin: 0.25em 0;
+}
+
+.prose-draft code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--accent-soft);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+
+.prose-draft pre {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  background: #1a222c;
+  color: #e8eef5;
+  padding: 1rem;
+  overflow-x: auto;
+  border-radius: 4px;
+}
+
+.prose-draft pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.prose-draft blockquote {
+  margin: 1em 0;
+  padding-left: 1rem;
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+}

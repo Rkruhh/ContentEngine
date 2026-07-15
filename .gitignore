@@ -1,0 +1,17 @@
+# dependencies
+/node_modules
+/.next
+/out
+
+# env
+.env
+.env.local
+.env.*.local
+
+# evals
+/evals/results/*.json
+
+# misc
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
