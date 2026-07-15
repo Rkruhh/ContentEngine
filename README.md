@@ -1,6 +1,6 @@
 # Content Engine
 
-Draft → evaluate → revise loop for technical writing. Built as a portfolio demo for a Content Engineer / AI DevRel role: prompts, eval harness, and UI stay clearly separated.
+Draft → evaluate → revise loop for technical writing.
 
 ## Stack
 
@@ -22,6 +22,44 @@ No database — everything is stateless per request.
 | `app/api/*` | Thin JSON route handlers |
 | `components/*` | Brief form, draft view, scorecard, stepper |
 | `evals/*` | Fixed cases + CLI pass/fail runner |
+
+
+## FOLDER Structure
+content-engine/
+├── .env.example                    (GROQ_API_KEY=)
+├── app/
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── globals.css
+│   └── api/
+│       ├── draft/route.ts
+│       ├── evaluate/route.ts
+│       └── revise/route.ts
+├── lib/
+│   ├── ai/
+│   │   ├── client.ts
+│   │   ├── prompts.ts
+│   │   └── schema.ts
+│   ├── harness/
+│   │   ├── rubric.ts
+│   │   ├── run-eval.ts
+│   │   └── fixtures/
+│   │       ├── good-example.md
+│   │       └── bad-example.md
+│   └── pipeline/
+│       └── run-pipeline.ts
+├── components/
+│   ├── brief-form.tsx
+│   ├── draft-view.tsx
+│   ├── scorecard.tsx
+│   └── stepper.tsx
+├── evals/
+│   ├── cases.ts
+│   └── run-evals.ts
+└── tests/
+    ├── rubric.test.ts
+    └── pipeline.test.ts
+
 
 **Models:** `llama-3.3-70b-versatile` for draft/revise, `llama-3.1-8b-instant` for eval.
 
