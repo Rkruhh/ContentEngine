@@ -14,6 +14,7 @@ import {
   generateDraft,
   reviseDraft,
   runPipeline,
+  runQualityPipeline,
 } from "../lib/pipeline/run-pipeline";
 import type { EvalResult } from "../lib/ai/schema";
 
@@ -36,6 +37,19 @@ const evalPayload: EvalResult = {
   },
   top_fixes: ["Remove hedges.", "Name one concrete claim.", "Break long paragraphs."],
 };
+
+function evalAt(overallLike: number): EvalResult {
+  return {
+    ...evalPayload,
+    scores: {
+      point_of_view: overallLike,
+      structure: overallLike,
+      tone: overallLike,
+      technical_precision: overallLike,
+      geo_readability: overallLike,
+    },
+  };
+}
 
 const brief = {
   topic: "Eval loops",
@@ -93,5 +107,81 @@ describe("pipeline", () => {
     expect(result.revisedDraft).toBe("Draft B");
     expect(result.revisedEval?.scores.point_of_view).toBe(7);
     expect(generateTextMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("runQualityPipeline stops with threshold_reached on strong initial draft", async () => {
+    generateTextMock
+      .mockResolvedValueOnce({ text: "Strong draft" } as never)
+      .mockResolvedValueOnce({ text: JSON.stringify(evalAt(8)) } as never);
+
+    const result = await runQualityPipeline(brief, {
+      threshold: 7,
+      maxIterations: 3,
+    });
+
+    expect(result.stopReason).toBe("threshold_reached");
+    expect(result.iterations).toHaveLength(1);
+    expect(result.iterations[0]?.accepted).toBe(true);
+    expect(result.finalDraft).toBe("Strong draft");
+    expect(generateTextMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("runQualityPipeline accepts improving revision then hits threshold", async () => {
+    generateTextMock
+      .mockResolvedValueOnce({ text: "Weak draft" } as never)
+      .mockResolvedValueOnce({ text: JSON.stringify(evalAt(4)) } as never)
+      .mockResolvedValueOnce({ text: "Better draft" } as never)
+      .mockResolvedValueOnce({ text: JSON.stringify(evalAt(8)) } as never);
+
+    const result = await runQualityPipeline(brief, {
+      threshold: 7,
+      maxIterations: 3,
+    });
+
+    expect(result.stopReason).toBe("threshold_reached");
+    expect(result.iterations).toHaveLength(2);
+    expect(result.iterations[1]?.accepted).toBe(true);
+    expect(result.finalDraft).toBe("Better draft");
+    expect(result.finalOverallScore).toBe(8);
+  });
+
+  it("runQualityPipeline rejects non-improving revision with no_improvement", async () => {
+    generateTextMock
+      .mockResolvedValueOnce({ text: "Weak draft" } as never)
+      .mockResolvedValueOnce({ text: JSON.stringify(evalAt(5)) } as never)
+      .mockResolvedValueOnce({ text: "Worse draft" } as never)
+      .mockResolvedValueOnce({ text: JSON.stringify(evalAt(4)) } as never);
+
+    const result = await runQualityPipeline(brief, {
+      threshold: 7,
+      maxIterations: 3,
+    });
+
+    expect(result.stopReason).toBe("no_improvement");
+    expect(result.iterations).toHaveLength(2);
+    expect(result.iterations[1]?.accepted).toBe(false);
+    expect(result.finalDraft).toBe("Weak draft");
+    expect(result.finalOverallScore).toBe(5);
+  });
+
+  it("runQualityPipeline stops with max_iterations when still below threshold", async () => {
+    generateTextMock
+      .mockResolvedValueOnce({ text: "D0" } as never)
+      .mockResolvedValueOnce({ text: JSON.stringify(evalAt(3)) } as never)
+      .mockResolvedValueOnce({ text: "D1" } as never)
+      .mockResolvedValueOnce({ text: JSON.stringify(evalAt(4)) } as never)
+      .mockResolvedValueOnce({ text: "D2" } as never)
+      .mockResolvedValueOnce({ text: JSON.stringify(evalAt(5)) } as never);
+
+    const result = await runQualityPipeline(brief, {
+      threshold: 9,
+      maxIterations: 2,
+    });
+
+    expect(result.stopReason).toBe("max_iterations");
+    expect(result.iterations).toHaveLength(3);
+    expect(result.iterations.every((i) => i.accepted)).toBe(true);
+    expect(result.finalDraft).toBe("D2");
+    expect(result.finalOverallScore).toBe(5);
   });
 });
