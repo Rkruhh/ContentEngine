@@ -18,10 +18,23 @@ const critiqueSchema = z.object({
   geo_readability: z.string().min(1),
 });
 
+/** Models often return 1–5 fixes; normalize to exactly 3 for the UI/pipeline. */
+const topFixesSchema = z.preprocess((value) => {
+  if (!Array.isArray(value)) return value;
+  const cleaned = value
+    .map((item) => (typeof item === "string" ? item.trim() : String(item ?? "").trim()))
+    .filter(Boolean);
+  if (cleaned.length === 0) return cleaned;
+  while (cleaned.length < 3) {
+    cleaned.push(cleaned[cleaned.length - 1]!);
+  }
+  return cleaned.slice(0, 3);
+}, z.array(z.string().min(1)).length(3));
+
 export const evalResultSchema = z.object({
   scores: scoresSchema,
   critique: critiqueSchema,
-  top_fixes: z.array(z.string().min(1)).length(3),
+  top_fixes: topFixesSchema,
 });
 
 export type EvalResult = z.infer<typeof evalResultSchema>;

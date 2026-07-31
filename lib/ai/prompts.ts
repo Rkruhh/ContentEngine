@@ -30,7 +30,9 @@ Return ONLY valid JSON with this exact shape (no markdown fences, no commentary)
     "geo_readability": "specific feedback"
   },
   "top_fixes": ["fix 1", "fix 2", "fix 3"]
-}`;
+}
+
+top_fixes MUST be an array of exactly 3 non-empty strings — never fewer, never more.`;
 
 export const REVISE_SYSTEM = `You are a senior technical writer and DevRel specialist.
 Revise the draft using the editor's top fixes. Keep a similar length and the same stance.

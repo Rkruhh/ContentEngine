@@ -57,4 +57,24 @@ describe("parseEvalJson", () => {
     };
     expect(() => evalResultSchema.parse(bad)).toThrow();
   });
+
+  it("normalizes top_fixes longer than 3", () => {
+    const parsed = evalResultSchema.parse({
+      ...validPayload,
+      top_fixes: ["a", "b", "c", "d"],
+    });
+    expect(parsed.top_fixes).toEqual(["a", "b", "c"]);
+  });
+
+  it("pads top_fixes shorter than 3", () => {
+    const parsed = evalResultSchema.parse({
+      ...validPayload,
+      top_fixes: ["Only one fix"],
+    });
+    expect(parsed.top_fixes).toEqual([
+      "Only one fix",
+      "Only one fix",
+      "Only one fix",
+    ]);
+  });
 });
