@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { EvalResult } from "../lib/ai/schema";
+import { evalResultSchema, type EvalResult } from "../lib/ai/schema";
 import { meetsThreshold, overallScore } from "../lib/pipeline/quality";
 
 function evalWithScores(partial: Partial<EvalResult["scores"]>): EvalResult {
-  return {
+  return evalResultSchema.parse({
     scores: {
       point_of_view: 5,
       structure: 5,
@@ -20,7 +20,7 @@ function evalWithScores(partial: Partial<EvalResult["scores"]>): EvalResult {
       geo_readability: "c",
     },
     top_fixes: ["a", "b", "c"],
-  };
+  });
 }
 
 describe("overallScore", () => {

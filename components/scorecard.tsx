@@ -5,19 +5,13 @@ import {
   type RubricKey,
 } from "@/lib/harness/rubric";
 import type { EvalResult } from "@/lib/ai/schema";
+import { MetricBar } from "@/components/ui/metric-bar";
 
 type ScorecardProps = {
   evaluation: EvalResult | null;
   previous?: EvalResult | null;
   emptyLabel?: string;
 };
-
-function delta(current: number, prev?: number): string | null {
-  if (prev === undefined) return null;
-  const d = current - prev;
-  if (d === 0) return "±0";
-  return d > 0 ? `+${d}` : `${d}`;
-}
 
 export function Scorecard({
   evaluation,
@@ -38,40 +32,16 @@ export function Scorecard({
         {RUBRIC_DIMENSIONS.map((dim) => {
           const score = evaluation.scores[dim.key as RubricKey];
           const prevScore = previous?.scores[dim.key as RubricKey];
-          const d = delta(score, prevScore);
-          const pct = `${Math.max(0, Math.min(100, score * 10))}%`;
+          const delta =
+            prevScore === undefined ? null : score - prevScore;
           return (
             <div key={dim.key} className="flex flex-col gap-1.5">
-              <div className="flex items-baseline justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-[var(--ink)]">
-                    {dim.label}
-                  </p>
-                  <p className="text-xs text-[var(--muted)]">{dim.description}</p>
-                </div>
-                <div className="flex items-baseline gap-2 font-[family-name:var(--font-mono)] text-sm">
-                  <span className="font-medium tabular-nums">{score}</span>
-                  {d && (
-                    <span
-                      className={
-                        d.startsWith("+")
-                          ? "text-[var(--ok)]"
-                          : d.startsWith("-")
-                            ? "text-[var(--warn)]"
-                            : "text-[var(--muted)]"
-                      }
-                    >
-                      {d}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-[var(--line)]">
-                <div
-                  className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
-                  style={{ width: pct }}
-                />
-              </div>
+              <MetricBar
+                label={dim.label}
+                value={score}
+                hint={dim.description}
+                delta={delta}
+              />
               <p className="text-sm text-[var(--muted)]">
                 {evaluation.critique[dim.key as RubricKey]}
               </p>

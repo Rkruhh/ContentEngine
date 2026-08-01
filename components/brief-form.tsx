@@ -14,6 +14,7 @@ type BriefFormProps = {
   onChange: (values: BriefValues) => void;
   onSubmit: () => void;
   disabled?: boolean;
+  submitLabel?: string;
 };
 
 export function BriefForm({
@@ -21,6 +22,7 @@ export function BriefForm({
   onChange,
   onSubmit,
   disabled,
+  submitLabel = "Draft",
 }: BriefFormProps) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -78,7 +80,7 @@ export function BriefForm({
         disabled={disabled}
         className="mt-1 rounded-sm bg-[var(--ink)] px-4 py-2.5 text-sm font-semibold text-[var(--bg-elevated)] transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Draft
+        {submitLabel}
       </button>
     </form>
   );
