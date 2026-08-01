@@ -77,4 +77,30 @@ describe("parseEvalJson", () => {
       "Only one fix",
     ]);
   });
+
+  it("defaults structured critic fields for legacy payloads", () => {
+    const parsed = evalResultSchema.parse(validPayload);
+    expect(parsed.strengths).toEqual([]);
+    expect(parsed.weaknesses).toEqual([]);
+    expect(parsed.do_not_change).toEqual([]);
+    expect(parsed.confidence).toBe("Medium");
+    expect(parsed.overall_score).toBe(6.4);
+    expect(parsed.prioritized_improvements).toEqual(validPayload.top_fixes);
+  });
+
+  it("accepts full structured critic payload", () => {
+    const parsed = evalResultSchema.parse({
+      ...validPayload,
+      overall_score: 6,
+      strengths: ["Strong POV"],
+      weaknesses: ["Flat middle"],
+      prioritized_improvements: ["Fix middle", "Add example", "Tighten close"],
+      do_not_change: ["Opening claim"],
+      confidence: "high",
+    });
+    expect(parsed.confidence).toBe("High");
+    expect(parsed.strengths).toEqual(["Strong POV"]);
+    expect(parsed.do_not_change).toEqual(["Opening claim"]);
+    expect(parsed.prioritized_improvements[0]).toBe("Fix middle");
+  });
 });

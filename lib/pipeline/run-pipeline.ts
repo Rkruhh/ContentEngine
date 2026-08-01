@@ -18,6 +18,46 @@ function formatBrief(brief: Brief): string {
   ].join("\n");
 }
 
+function formatList(label: string, items: string[]): string {
+  if (items.length === 0) return `${label}\n(none)`;
+  return `${label}\n${items.map((item, i) => `${i + 1}. ${item}`).join("\n")}`;
+}
+
+/** Build the structured critic brief the Editor consumes. */
+export function formatEditorBrief(evaluation: EvalResult): string {
+  const improvements =
+    evaluation.prioritized_improvements.length > 0
+      ? evaluation.prioritized_improvements
+      : evaluation.top_fixes;
+
+  const perDimension = Object.entries(evaluation.critique)
+    .map(([key, value]) => `- ${key}: ${value}`)
+    .join("\n");
+
+  const metricScores = Object.entries(evaluation.scores)
+    .map(([key, value]) => `- ${key}: ${value}`)
+    .join("\n");
+
+  return [
+    `Overall score: ${evaluation.overall_score}`,
+    `Confidence: ${evaluation.confidence}`,
+    "",
+    "Individual metric scores:",
+    metricScores,
+    "",
+    formatList("Strengths (preserve — do not weaken or remove):", evaluation.strengths),
+    "",
+    formatList("Weaknesses (improve these only):", evaluation.weaknesses),
+    "",
+    formatList("Prioritized improvements:", improvements),
+    "",
+    formatList("Do not change:", evaluation.do_not_change),
+    "",
+    "Per-dimension critique:",
+    perDimension,
+  ].join("\n");
+}
+
 export async function generateDraft(brief: Brief): Promise<string> {
   const { text } = await generateText({
     model: draftModel,
@@ -27,15 +67,14 @@ export async function generateDraft(brief: Brief): Promise<string> {
   return text.trim();
 }
 
+/**
+ * Editor step: incremental revision from structured critic feedback.
+ * Rejects are handled by the quality pipeline (overall must improve).
+ */
 export async function reviseDraft(
   draft: string,
   evalResult: EvalResult,
 ): Promise<string> {
-  const fixes = evalResult.top_fixes.map((f, i) => `${i + 1}. ${f}`).join("\n");
-  const critiques = Object.entries(evalResult.critique)
-    .map(([k, v]) => `- ${k}: ${v}`)
-    .join("\n");
-
   const { text } = await generateText({
     model: draftModel,
     system: REVISE_SYSTEM,
@@ -43,11 +82,8 @@ export async function reviseDraft(
       "Original draft:",
       draft,
       "",
-      "Editor critique:",
-      critiques,
-      "",
-      "Top fixes to apply:",
-      fixes,
+      "Structured critic evaluation:",
+      formatEditorBrief(evalResult),
     ].join("\n"),
   });
   return text.trim();
@@ -93,6 +129,7 @@ export type QualityPipelineOptions = {
   maxIterations?: number;
 };
 
+/** One step in the revision history (1-based iteration index). */
 export type PipelineIteration = {
   iteration: number;
   draft: string;
@@ -102,7 +139,10 @@ export type PipelineIteration = {
 };
 
 export type QualityPipelineResult = {
+  /** Complete revision history for UI (Iteration 1…N). */
   iterations: PipelineIteration[];
+  /** Alias of iterations for future UI consumers. */
+  revisionHistory: PipelineIteration[];
   finalDraft: string;
   finalEvaluation: EvalResult;
   finalOverallScore: number;
@@ -116,7 +156,8 @@ const DEFAULT_MAX_ITERATIONS = 3;
 
 /**
  * Orchestrated quality loop:
- * draft → evaluate → revise while below threshold (accept only if overall improves).
+ * draft → evaluate → revise while below threshold.
+ * Accept a revision only if overall score strictly improves; otherwise keep prior draft.
  */
 export async function runQualityPipeline(
   brief: Brief,
@@ -132,7 +173,7 @@ export async function runQualityPipeline(
   const initialOverall = overallScore(initialEval);
 
   iterations.push({
-    iteration: 0,
+    iteration: 1,
     draft: initialDraft,
     evaluation: initialEval,
     overallScore: initialOverall,
@@ -143,26 +184,32 @@ export async function runQualityPipeline(
   let bestEval = initialEval;
   let bestOverall = initialOverall;
 
+  const finish = (
+    stopReason: StopReason,
+  ): QualityPipelineResult => ({
+    iterations,
+    revisionHistory: iterations,
+    finalDraft: bestDraft,
+    finalEvaluation: bestEval,
+    finalOverallScore: bestOverall,
+    stopReason,
+    threshold,
+    maxIterations,
+  });
+
   if (meetsThreshold(bestEval, threshold)) {
-    return {
-      iterations,
-      finalDraft: bestDraft,
-      finalEvaluation: bestEval,
-      finalOverallScore: bestOverall,
-      stopReason: "threshold_reached",
-      threshold,
-      maxIterations,
-    };
+    return finish("threshold_reached");
   }
 
   for (let attempt = 1; attempt <= maxIterations; attempt++) {
     const candidateDraft = await reviseDraft(bestDraft, bestEval);
     const candidateEval = await runEval(candidateDraft);
     const candidateOverall = overallScore(candidateEval);
+    // Reject ties and regressions — keep previous draft.
     const accepted = candidateOverall > bestOverall;
 
     iterations.push({
-      iteration: attempt,
+      iteration: attempt + 1,
       draft: candidateDraft,
       evaluation: candidateEval,
       overallScore: candidateOverall,
@@ -170,15 +217,7 @@ export async function runQualityPipeline(
     });
 
     if (!accepted) {
-      return {
-        iterations,
-        finalDraft: bestDraft,
-        finalEvaluation: bestEval,
-        finalOverallScore: bestOverall,
-        stopReason: "no_improvement",
-        threshold,
-        maxIterations,
-      };
+      return finish("no_improvement");
     }
 
     bestDraft = candidateDraft;
@@ -186,25 +225,9 @@ export async function runQualityPipeline(
     bestOverall = candidateOverall;
 
     if (meetsThreshold(bestEval, threshold)) {
-      return {
-        iterations,
-        finalDraft: bestDraft,
-        finalEvaluation: bestEval,
-        finalOverallScore: bestOverall,
-        stopReason: "threshold_reached",
-        threshold,
-        maxIterations,
-      };
+      return finish("threshold_reached");
     }
   }
 
-  return {
-    iterations,
-    finalDraft: bestDraft,
-    finalEvaluation: bestEval,
-    finalOverallScore: bestOverall,
-    stopReason: "max_iterations",
-    threshold,
-    maxIterations,
-  };
+  return finish("max_iterations");
 }

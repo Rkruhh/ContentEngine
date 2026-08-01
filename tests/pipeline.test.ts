@@ -11,16 +11,18 @@ vi.mock("../lib/ai/client", () => ({
 
 import { generateText } from "ai";
 import {
+  formatEditorBrief,
   generateDraft,
   reviseDraft,
   runPipeline,
   runQualityPipeline,
 } from "../lib/pipeline/run-pipeline";
 import type { EvalResult } from "../lib/ai/schema";
+import { evalResultSchema } from "../lib/ai/schema";
 
 const generateTextMock = vi.mocked(generateText);
 
-const evalPayload: EvalResult = {
+const evalPayload: EvalResult = evalResultSchema.parse({
   scores: {
     point_of_view: 4,
     structure: 5,
@@ -36,10 +38,19 @@ const evalPayload: EvalResult = {
     geo_readability: "Claims blur together.",
   },
   top_fixes: ["Remove hedges.", "Name one concrete claim.", "Break long paragraphs."],
-};
+  strengths: ["Clear topic sentence.", "Useful framing for engineers."],
+  weaknesses: ["Hedges in the second paragraph.", "Vague claims."],
+  prioritized_improvements: [
+    "Remove hedges.",
+    "Name one concrete claim.",
+    "Break long paragraphs.",
+  ],
+  do_not_change: ["Opening stance.", "Audience framing."],
+  confidence: "Medium",
+});
 
 function evalAt(overallLike: number): EvalResult {
-  return {
+  return evalResultSchema.parse({
     ...evalPayload,
     scores: {
       point_of_view: overallLike,
@@ -48,7 +59,7 @@ function evalAt(overallLike: number): EvalResult {
       technical_precision: overallLike,
       geo_readability: overallLike,
     },
-  };
+  });
 }
 
 const brief = {
@@ -68,13 +79,25 @@ describe("pipeline", () => {
     await expect(generateDraft(brief)).resolves.toBe("# Draft\n\nHello.");
   });
 
-  it("reviseDraft incorporates top fixes into the prompt", async () => {
+  it("reviseDraft feeds structured critic fields to the editor", async () => {
     generateTextMock.mockResolvedValueOnce({ text: "Revised copy." } as never);
     const revised = await reviseDraft("Original.", evalPayload);
     expect(revised).toBe("Revised copy.");
     const call = generateTextMock.mock.calls[0]?.[0] as { prompt: string };
-    expect(call.prompt).toContain("Remove hedges.");
     expect(call.prompt).toContain("Original.");
+    expect(call.prompt).toContain("Strengths");
+    expect(call.prompt).toContain("Clear topic sentence.");
+    expect(call.prompt).toContain("Do not change");
+    expect(call.prompt).toContain("Opening stance.");
+    expect(call.prompt).toContain("Remove hedges.");
+    expect(call.prompt).toContain("Confidence: Medium");
+  });
+
+  it("formatEditorBrief includes overall score and metric scores", () => {
+    const briefText = formatEditorBrief(evalPayload);
+    expect(briefText).toContain("Overall score:");
+    expect(briefText).toContain("point_of_view:");
+    expect(briefText).toContain("Weaknesses");
   });
 
   it("runPipeline without revise returns draft + eval only", async () => {
@@ -85,16 +108,14 @@ describe("pipeline", () => {
     const result = await runPipeline(brief);
     expect(result.draft).toBe("First draft body.");
     expect(result.draftEval.scores.point_of_view).toBe(4);
+    expect(result.draftEval.strengths.length).toBeGreaterThan(0);
     expect(result.revisedDraft).toBeUndefined();
     expect(result.revisedEval).toBeUndefined();
     expect(generateTextMock).toHaveBeenCalledTimes(2);
   });
 
   it("runPipeline with revise returns both versions and evals", async () => {
-    const revisedEval: EvalResult = {
-      ...evalPayload,
-      scores: { ...evalPayload.scores, point_of_view: 7, tone: 7 },
-    };
+    const revisedEval = evalAt(7);
 
     generateTextMock
       .mockResolvedValueOnce({ text: "Draft A" } as never)
@@ -121,6 +142,8 @@ describe("pipeline", () => {
 
     expect(result.stopReason).toBe("threshold_reached");
     expect(result.iterations).toHaveLength(1);
+    expect(result.revisionHistory).toEqual(result.iterations);
+    expect(result.iterations[0]?.iteration).toBe(1);
     expect(result.iterations[0]?.accepted).toBe(true);
     expect(result.finalDraft).toBe("Strong draft");
     expect(generateTextMock).toHaveBeenCalledTimes(2);
@@ -140,6 +163,8 @@ describe("pipeline", () => {
 
     expect(result.stopReason).toBe("threshold_reached");
     expect(result.iterations).toHaveLength(2);
+    expect(result.iterations[0]?.iteration).toBe(1);
+    expect(result.iterations[1]?.iteration).toBe(2);
     expect(result.iterations[1]?.accepted).toBe(true);
     expect(result.finalDraft).toBe("Better draft");
     expect(result.finalOverallScore).toBe(8);
@@ -180,6 +205,7 @@ describe("pipeline", () => {
 
     expect(result.stopReason).toBe("max_iterations");
     expect(result.iterations).toHaveLength(3);
+    expect(result.iterations.map((i) => i.iteration)).toEqual([1, 2, 3]);
     expect(result.iterations.every((i) => i.accepted)).toBe(true);
     expect(result.finalDraft).toBe("D2");
     expect(result.finalOverallScore).toBe(5);

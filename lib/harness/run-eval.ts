@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import { evalModel } from "../ai/client";
 import { EVAL_SYSTEM } from "../ai/prompts";
 import { evalResultSchema, type EvalResult } from "../ai/schema";
+import { overallScore } from "../pipeline/quality";
 
 /** Strip optional markdown fences and isolate the JSON object. */
 export function parseEvalJson(raw: string): unknown {
@@ -18,6 +19,11 @@ export function parseEvalJson(raw: string): unknown {
   return JSON.parse(text.slice(start, end + 1));
 }
 
+/**
+ * Critic step: evaluate a draft into structured feedback.
+ * overall_score is always recomputed from metric scores so the pipeline
+ * accept/reject gate stays consistent.
+ */
 export async function runEval(draft: string): Promise<EvalResult> {
   const { text } = await generateText({
     model: evalModel,
@@ -40,5 +46,9 @@ export async function runEval(draft: string): Promise<EvalResult> {
       `Eval response failed schema validation: ${result.error.message}`,
     );
   }
-  return result.data;
+
+  return {
+    ...result.data,
+    overall_score: overallScore(result.data),
+  };
 }
