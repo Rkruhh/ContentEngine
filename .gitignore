@@ -14,6 +14,9 @@
 # local user memory
 /data/memory/*.json
 
+# workspace (projects / documents)
+/data/workspace/**/*.json
+
 # misc
 .DS_Store
 *.tsbuildinfo

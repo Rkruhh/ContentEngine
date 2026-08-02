@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getMemoryManager } from "@/lib/memory";
+import { getMemoryManager } from "@/lib/memory/server";
 
 export async function GET() {
   try {

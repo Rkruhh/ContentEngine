@@ -1,15 +1,7 @@
 /**
- * Public memory API.
- * Consumers must use MemoryManager (via getMemoryManager) — never LocalMemoryStore.
+ * Client-safe memory exports (types + pure helpers only).
+ * Server code that needs persistence should import `@/lib/memory/server`.
  */
-export type { MemoryStore } from "./store";
-export type { MemoryManager, UpdateMemoryInput } from "./manager";
-export { DefaultMemoryManager } from "./manager";
-export {
-  createMemoryManager,
-  getMemoryManager,
-  setMemoryManager,
-} from "./factory";
 export { formatMemoryForPrompt } from "./format";
 export { mergePreferences, mergeUniqueStrings } from "./merge";
 export {

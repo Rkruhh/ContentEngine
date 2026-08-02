@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { briefSchema } from "@/lib/ai/schema";
-import { getMemoryManager } from "@/lib/memory";
+import { getMemoryManager } from "@/lib/memory/server";
 import { runQualityPipeline } from "@/lib/pipeline/run-pipeline";
 
 const pipelineBodySchema = briefSchema.extend({

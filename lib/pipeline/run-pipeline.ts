@@ -3,7 +3,7 @@ import { draftModel } from "../ai/client";
 import { DRAFT_SYSTEM, REVISE_SYSTEM } from "../ai/prompts";
 import type { Brief, EvalResult } from "../ai/schema";
 import { runEval } from "../harness/run-eval";
-import { formatMemoryForPrompt, getMemoryManager } from "../memory";
+import { formatMemoryForPrompt, getMemoryManager } from "../memory/server";
 import type { UserMemory } from "../memory";
 import {
   meetsThreshold,
