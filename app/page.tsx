@@ -7,6 +7,7 @@ import { DraftComparison } from "@/components/draft-comparison";
 import { DraftView } from "@/components/draft-view";
 import { EmptyWorkflow } from "@/components/empty-workflow";
 import { IterationTimeline } from "@/components/iteration-timeline";
+import { MemoryPanel } from "@/components/memory-panel";
 import {
   buildCompletedStages,
   buildIdleStages,
@@ -20,6 +21,7 @@ import { Scorecard } from "@/components/scorecard";
 import { Stepper, type Step } from "@/components/stepper";
 import { StopReasonBanner } from "@/components/stop-reason-banner";
 import type { EvalResult } from "@/lib/ai/schema";
+import type { UserMemory } from "@/lib/memory";
 import type { QualityPipelineResult } from "@/lib/pipeline/run-pipeline";
 import { buildReasoningSummary } from "@/lib/ui/reasoning";
 
@@ -51,6 +53,9 @@ export default function HomePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [memory, setMemory] = useState<UserMemory | null>(null);
+  const [memoryLoading, setMemoryLoading] = useState(true);
+  const [memoryResetting, setMemoryResetting] = useState(false);
 
   // Legacy manual path (kept working).
   const [step, setStep] = useState<Step>("brief");
@@ -58,6 +63,24 @@ export default function HomePage() {
   const [evaluation, setEvaluation] = useState<EvalResult | null>(null);
   const [revisedDraft, setRevisedDraft] = useState("");
   const [revisedEval, setRevisedEval] = useState<EvalResult | null>(null);
+
+  async function loadMemory() {
+    setMemoryLoading(true);
+    try {
+      const res = await fetch("/api/memory");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load memory");
+      setMemory(data.memory as UserMemory);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load memory");
+    } finally {
+      setMemoryLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadMemory();
+  }, []);
 
   useEffect(() => {
     if (!busy) return;
@@ -84,11 +107,27 @@ export default function HomePage() {
       setResult(next);
       setStages(buildCompletedStages(next.iterations.length > 1));
       setSelectedIteration(next.iterations.length - 1);
+      await loadMemory();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Pipeline failed");
       setStages(buildIdleStages());
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleResetMemory() {
+    setMemoryResetting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/memory", { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to reset memory");
+      setMemory(data.memory as UserMemory);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reset memory");
+    } finally {
+      setMemoryResetting(false);
     }
   }
 
@@ -105,6 +144,7 @@ export default function HomePage() {
         brief,
       );
       setDraft(next);
+      await loadMemory();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Draft failed");
       setStep("brief");
@@ -205,6 +245,13 @@ export default function HomePage() {
               submitLabel={busy ? "Running pipeline…" : "Run pipeline"}
             />
           </div>
+
+          <MemoryPanel
+            memory={memory}
+            loading={memoryLoading}
+            onReset={handleResetMemory}
+            resetting={memoryResetting}
+          />
 
           <button
             type="button"

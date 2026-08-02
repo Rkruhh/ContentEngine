@@ -3,6 +3,8 @@ import { draftModel } from "../ai/client";
 import { DRAFT_SYSTEM, REVISE_SYSTEM } from "../ai/prompts";
 import type { Brief, EvalResult } from "../ai/schema";
 import { runEval } from "../harness/run-eval";
+import { formatMemoryForPrompt, getMemoryManager } from "../memory";
+import type { UserMemory } from "../memory";
 import {
   meetsThreshold,
   overallScore,
@@ -58,11 +60,37 @@ export function formatEditorBrief(evaluation: EvalResult): string {
   ].join("\n");
 }
 
-export async function generateDraft(brief: Brief): Promise<string> {
+export type GenerateDraftOptions = {
+  /** Pass explicitly to avoid a disk read; `null` disables memory. */
+  memory?: UserMemory | null;
+};
+
+export async function generateDraft(
+  brief: Brief,
+  options: GenerateDraftOptions = {},
+): Promise<string> {
+  let memory = options.memory;
+  if (memory === undefined) {
+    try {
+      memory = await getMemoryManager().loadMemory();
+    } catch {
+      memory = null;
+    }
+  }
+
+  const memoryBlock = formatMemoryForPrompt(memory);
+  const prompt = [
+    memoryBlock,
+    "Current request — write a short technical piece from this brief:",
+    formatBrief(brief),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
   const { text } = await generateText({
     model: draftModel,
     system: DRAFT_SYSTEM,
-    prompt: `Write a short technical piece from this brief:\n\n${formatBrief(brief)}`,
+    prompt,
   });
   return text.trim();
 }
@@ -168,7 +196,14 @@ export async function runQualityPipeline(
 
   const iterations: PipelineIteration[] = [];
 
-  const initialDraft = await generateDraft(brief);
+  let memory: UserMemory | null = null;
+  try {
+    memory = await getMemoryManager().loadMemory();
+  } catch {
+    memory = null;
+  }
+
+  const initialDraft = await generateDraft(brief, { memory });
   const initialEval = await runEval(initialDraft);
   const initialOverall = overallScore(initialEval);
 

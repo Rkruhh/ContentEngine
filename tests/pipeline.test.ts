@@ -76,7 +76,32 @@ describe("pipeline", () => {
 
   it("generateDraft returns model text", async () => {
     generateTextMock.mockResolvedValueOnce({ text: "# Draft\n\nHello." } as never);
-    await expect(generateDraft(brief)).resolves.toBe("# Draft\n\nHello.");
+    await expect(generateDraft(brief, { memory: null })).resolves.toBe(
+      "# Draft\n\nHello.",
+    );
+  });
+
+  it("generateDraft injects stored memory into the writer prompt", async () => {
+    generateTextMock.mockResolvedValueOnce({ text: "Mem draft" } as never);
+    await generateDraft(brief, {
+      memory: {
+        userId: "local",
+        preferredTone: "Wry",
+        preferredWritingStyle: "Tight technical essays",
+        audience: "DevRel",
+        preferredParagraphLength: "short",
+        preferredDocumentStructure: null,
+        frequentlyUsedTerminology: ["rubric"],
+        writingGoals: [],
+        knownPreferences: [],
+        recentLearnings: [],
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    const call = generateTextMock.mock.calls[0]?.[0] as { prompt: string };
+    expect(call.prompt).toContain("Stored writing memory");
+    expect(call.prompt).toContain("Preferred tone: Wry");
+    expect(call.prompt).toContain("Current request");
   });
 
   it("reviseDraft feeds structured critic fields to the editor", async () => {

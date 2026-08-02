@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { briefSchema } from "@/lib/ai/schema";
+import { getMemoryManager } from "@/lib/memory";
 import { runQualityPipeline } from "@/lib/pipeline/run-pipeline";
 
 const pipelineBodySchema = briefSchema.extend({
@@ -16,6 +17,17 @@ export async function POST(request: Request) {
       threshold,
       maxIterations,
     });
+
+    try {
+      await getMemoryManager().updateMemory({
+        brief,
+        draft: result.finalDraft,
+        evaluation: result.finalEvaluation,
+      });
+    } catch (memoryError) {
+      console.error("Memory update failed:", memoryError);
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     return errorResponse(error);

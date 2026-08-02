@@ -11,6 +11,9 @@
 # evals
 /evals/results/*.json
 
+# local user memory
+/data/memory/*.json
+
 # misc
 .DS_Store
 *.tsbuildinfo
