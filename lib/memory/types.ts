@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { learnedPreferenceSchema } from "./preference-observation";
 
 export const LOCAL_USER_ID = "local";
 
@@ -28,6 +29,8 @@ export const userMemorySchema = z.object({
   knownPreferences: z.array(z.string()),
   /** Short notes about newly learned prefs — not document bodies. */
   recentLearnings: z.array(recentLearningSchema),
+  /** Aggregated preferences learned from meaningful user edits. */
+  learnedPreferences: z.array(learnedPreferenceSchema).default([]),
   updatedAt: z.string(),
 });
 
@@ -75,6 +78,7 @@ export function emptyMemory(userId = LOCAL_USER_ID): UserMemory {
     writingGoals: [],
     knownPreferences: [],
     recentLearnings: [],
+    learnedPreferences: [],
     updatedAt: new Date(0).toISOString(),
   };
 }

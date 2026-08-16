@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { evalResultSchema } from "../ai/schema";
+import { learnedPreferenceSchema } from "../memory/preference-observation";
 
 /** Extensible document-type registry — add entries here later without schema churn. */
 export const DOCUMENT_TYPES = [
@@ -48,6 +49,10 @@ export const documentVersionSchema = z.object({
   stopReason: z
     .enum(["threshold_reached", "max_iterations", "no_improvement"])
     .optional(),
+  /** How this version was produced. Defaults to pipeline for backward compat. */
+  source: z.enum(["pipeline", "user_edit"]).optional().default("pipeline"),
+  /** Prior version id when this version was created via user edit. */
+  baseVersionId: z.string().optional(),
 });
 
 export type DocumentVersion = z.infer<typeof documentVersionSchema>;
@@ -79,6 +84,8 @@ export const projectSchema = z.object({
   memoryRef: z.string(),
   /** Placeholder for future knowledge-base / GitHub sources. */
   knowledgeSourceIds: z.array(z.string()),
+  /** Project-scoped preferences learned from edits in this project. */
+  learnedPreferences: z.array(learnedPreferenceSchema).default([]),
 });
 
 export type Project = z.infer<typeof projectSchema>;

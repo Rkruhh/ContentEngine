@@ -77,6 +77,7 @@ export async function POST(request: Request, { params }: Params) {
       threshold: body.threshold,
       maxIterations: body.maxIterations,
       knowledgeContext: knowledgeContext || null,
+      projectLearnedPreferences: project.learnedPreferences ?? [],
     });
 
     const updated = await documentService.addVersion(projectId, documentId, {

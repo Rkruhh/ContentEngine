@@ -29,6 +29,8 @@ export type AddVersionInput = {
   iterationCount: number;
   finalScore: number;
   stopReason?: StopReason;
+  source?: "pipeline" | "user_edit";
+  baseVersionId?: string;
 };
 
 export class DocumentService {
@@ -138,6 +140,8 @@ export class DocumentService {
       iterationCount: input.iterationCount,
       finalScore: input.finalScore,
       stopReason: input.stopReason,
+      source: input.source ?? "pipeline",
+      baseVersionId: input.baseVersionId,
     };
 
     const next: Document = {
@@ -172,5 +176,35 @@ export class DocumentService {
         (v) => v.versionNumber === document.currentVersion,
       ) ?? null
     );
+  }
+
+  /**
+   * Append a user-edited version without overwriting the base.
+   * Reuses the base evaluation (no critic re-run required to save).
+   */
+  async addUserEditVersion(
+    projectId: string,
+    documentId: string,
+    input: { content: string; baseVersionId: string },
+  ): Promise<Document | null> {
+    const existing = await this.documents.getById(projectId, documentId);
+    if (!existing) return null;
+
+    const base = existing.versionHistory.find(
+      (v) => v.id === input.baseVersionId,
+    );
+    if (!base) {
+      throw new Error("Base version not found");
+    }
+
+    return this.addVersion(projectId, documentId, {
+      content: input.content,
+      evaluation: base.evaluation,
+      iterationCount: base.iterationCount,
+      finalScore: base.finalScore,
+      stopReason: base.stopReason,
+      source: "user_edit",
+      baseVersionId: base.id,
+    });
   }
 }
