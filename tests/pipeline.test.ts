@@ -104,6 +104,19 @@ describe("pipeline", () => {
     expect(call.prompt).toContain("Current request");
   });
 
+  it("generateDraft injects knowledgeContext into the writer prompt", async () => {
+    generateTextMock.mockResolvedValueOnce({ text: "KB draft" } as never);
+    await generateDraft(brief, {
+      memory: null,
+      knowledgeContext:
+        "Retrieved project knowledge\n\n### Excerpt 1 [Source: guide.md]\nUse getByRole.",
+    });
+    const call = generateTextMock.mock.calls[0]?.[0] as { prompt: string };
+    expect(call.prompt).toContain("Retrieved project knowledge");
+    expect(call.prompt).toContain("getByRole");
+    expect(call.prompt).toContain("Current request");
+  });
+
   it("reviseDraft feeds structured critic fields to the editor", async () => {
     generateTextMock.mockResolvedValueOnce({ text: "Revised copy." } as never);
     const revised = await reviseDraft("Original.", evalPayload);
@@ -172,6 +185,23 @@ describe("pipeline", () => {
     expect(result.iterations[0]?.accepted).toBe(true);
     expect(result.finalDraft).toBe("Strong draft");
     expect(generateTextMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("runQualityPipeline injects knowledgeContext into draft and eval prompts", async () => {
+    generateTextMock
+      .mockResolvedValueOnce({ text: "Grounded draft" } as never)
+      .mockResolvedValueOnce({ text: JSON.stringify(evalAt(8)) } as never);
+
+    await runQualityPipeline(brief, {
+      threshold: 7,
+      knowledgeContext: "Retrieved project knowledge\n\nUse getByRole.",
+    });
+
+    const draftCall = generateTextMock.mock.calls[0]?.[0] as { prompt: string };
+    const evalCall = generateTextMock.mock.calls[1]?.[0] as { prompt: string };
+    expect(draftCall.prompt).toContain("getByRole");
+    expect(evalCall.prompt).toContain("getByRole");
+    expect(evalCall.prompt).toContain("Use the sources above");
   });
 
   it("runQualityPipeline accepts improving revision then hits threshold", async () => {

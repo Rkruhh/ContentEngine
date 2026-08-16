@@ -23,3 +23,16 @@ export async function apiSend<T>(
   }
   return data as T;
 }
+
+/** Multipart upload helper (do not set Content-Type — browser sets boundary). */
+export async function apiUploadForm<T>(
+  url: string,
+  form: FormData,
+): Promise<T> {
+  const res = await fetch(url, { method: "POST", body: form });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error ?? `Request failed (${res.status})`);
+  }
+  return data as T;
+}

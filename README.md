@@ -8,7 +8,7 @@ ContentEngine is a TypeScript pipeline that improves AI-generated technical writ
 It runs a draft → evaluate → revise loop: a model generates a first draft of technical content, a separate rubric-based evaluator scores it on defined quality dimensions, and — if it falls short — the system revises the draft against that specific feedback before returning it.
 
 **What stack is it built on?**
-Next.js 15 (App Router) and TypeScript on the frontend, the Vercel AI SDK against Groq's OpenAI-compatible API for generation, Zod for structured/validated eval output, and Biome + Vitest for linting and testing. It's stateless — no database.
+Next.js 15 (App Router) and TypeScript on the frontend, the Vercel AI SDK against Groq's OpenAI-compatible API for generation, local Transformers.js embeddings for RAG (`Xenova/all-MiniLM-L6-v2`), Zod for structured/validated eval output, and Biome + Vitest for linting and testing. Workspace/memory/knowledge persist as local JSON — no hosted database.
 
 **How does the eval harness work?**
 Each draft is scored against fixed rubric dimensions defined in `lib/harness/rubric.ts`. `runEval` compares the draft to fixture examples (`good-example.md`, `bad-example.md`) and returns a structured, typed score via Zod — not a free-text opinion — so scores are comparable across runs and can gate whether a revision cycle triggers.
@@ -25,11 +25,12 @@ The system is organized so that generation, evaluation, and orchestration are se
 | `lib/ai` | Groq client, system prompts, Zod schemas |
 | `lib/harness` | Rubric dimensions, `runEval`, fixtures |
 | `lib/pipeline` | `generateDraft` / `reviseDraft` / `runPipeline` |
+| `lib/knowledge` | RAG: parsers → chunker → local embeddings → JSON vector store → retriever |
 | `app/api/*` | Thin JSON route handlers |
 | `components/*` | Brief form, draft view, scorecard, stepper |
 | `evals/*` | Fixed cases + CLI pass/fail runner |
 
-**Models:** `llama-3.3-70b-versatile` for draft/revise, `llama-3.1-8b-instant` for eval.
+**Models:** `llama-3.3-70b-versatile` for draft/revise, `llama-3.1-8b-instant` for eval. RAG embeddings run locally (default `Xenova/all-MiniLM-L6-v2`) — no OpenAI key.
 
 ## Setup
 
@@ -38,6 +39,7 @@ The system is organized so that generation, evaluation, and orchestration are se
 ```bash
 cp .env.example .env.local
 # edit .env.local → GROQ_API_KEY=gsk_...
+# optional: EMBEDDING_MODEL=Xenova/all-MiniLM-L6-v2
 ```
 
 2. Install and run:
@@ -48,6 +50,16 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+### Knowledge Base / RAG
+
+- Embeddings run **locally** via `@huggingface/transformers` (`LocalEmbeddingService`).
+- **No `OPENAI_API_KEY`** is required for ingest or retrieval.
+- Groq still handles Writer / Critic / Editor / Evaluator text generation.
+- Vectors stay in local JSON (`data/knowledge/`) behind the `VectorStore` abstraction.
+- The first ingestion may take longer while the embedding model downloads and caches (typically under `~/.cache/huggingface/`). Model weights are **not** committed to git.
+- Optional: set `EMBEDDING_MODEL` to another Transformers.js-compatible feature-extraction model.
+- Optional integration test for the real model: `RUN_LOCAL_EMBEDDING_INTEGRATION=1 npm test -- tests/local-embedding.integration.test.ts`
 
 ## Scripts
 

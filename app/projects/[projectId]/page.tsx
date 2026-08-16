@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CriticFeedback } from "@/components/critic-feedback";
 import { DraftView } from "@/components/draft-view";
+import { KnowledgePanel } from "@/components/knowledge-panel";
 import { MemoryPanel } from "@/components/memory-panel";
 import {
   buildCompletedStages,
@@ -16,7 +17,8 @@ import {
 import { StopReasonBanner } from "@/components/stop-reason-banner";
 import { CreateDocumentForm } from "@/components/workspace/create-document-form";
 import { SectionCard } from "@/components/ui/section-card";
-import { apiGet, apiSend } from "@/lib/api-client";
+import { apiGet, apiSend, apiUploadForm } from "@/lib/api-client";
+import type { KnowledgeSource } from "@/lib/knowledge";
 import type { UserMemory } from "@/lib/memory";
 import type { QualityPipelineResult } from "@/lib/pipeline/run-pipeline";
 import type {
@@ -36,6 +38,10 @@ export default function ProjectWorkspacePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [memory, setMemory] = useState<UserMemory | null>(null);
   const [memoryLoading, setMemoryLoading] = useState(true);
+  const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSource[]>(
+    [],
+  );
+  const [knowledgeLoading, setKnowledgeLoading] = useState(true);
   const [pipeline, setPipeline] = useState<QualityPipelineResult | null>(null);
   const [stages, setStages] = useState<PipelineStage[]>(buildIdleStages);
   const [busy, setBusy] = useState(false);
@@ -68,6 +74,20 @@ export default function ProjectWorkspacePage() {
     }
   }, []);
 
+  const loadKnowledge = useCallback(async () => {
+    setKnowledgeLoading(true);
+    try {
+      const data = await apiGet<{ sources: KnowledgeSource[] }>(
+        `/api/projects/${projectId}/knowledge`,
+      );
+      setKnowledgeSources(data.sources);
+    } catch {
+      /* non-blocking */
+    } finally {
+      setKnowledgeLoading(false);
+    }
+  }, [projectId]);
+
   const load = useCallback(async () => {
     setError(null);
     try {
@@ -93,7 +113,8 @@ export default function ProjectWorkspacePage() {
   useEffect(() => {
     void load();
     void loadMemory();
-  }, [load, loadMemory]);
+    void loadKnowledge();
+  }, [load, loadMemory, loadKnowledge]);
 
   useEffect(() => {
     if (!busy) return;
@@ -189,6 +210,49 @@ export default function ProjectWorkspacePage() {
       setMemory(data.memory);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reset memory");
+    }
+  }
+
+  async function handleKnowledgeUpload(file: File) {
+    setError(null);
+    const form = new FormData();
+    form.append("file", file);
+    form.append("name", file.name);
+    try {
+      await apiUploadForm<{ source: KnowledgeSource }>(
+        `/api/projects/${projectId}/knowledge`,
+        form,
+      );
+      await loadKnowledge();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+      throw err;
+    }
+  }
+
+  async function handleKnowledgeGithub(url: string) {
+    setError(null);
+    try {
+      await apiSend<{ source: KnowledgeSource }>(
+        `/api/projects/${projectId}/knowledge`,
+        "POST",
+        { type: "github", url },
+      );
+      await loadKnowledge();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "GitHub ingest failed");
+      throw err;
+    }
+  }
+
+  async function handleKnowledgeDelete(sourceId: string) {
+    setError(null);
+    try {
+      await apiSend(`/api/projects/${projectId}/knowledge/${sourceId}`, "DELETE");
+      await loadKnowledge();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+      throw err;
     }
   }
 
@@ -406,6 +470,15 @@ export default function ProjectWorkspacePage() {
               </p>
             </SectionCard>
           )}
+
+          <KnowledgePanel
+            sources={knowledgeSources}
+            loading={knowledgeLoading}
+            busy={busy}
+            onUpload={handleKnowledgeUpload}
+            onGithub={handleKnowledgeGithub}
+            onDelete={handleKnowledgeDelete}
+          />
 
           <MemoryPanel
             memory={memory}

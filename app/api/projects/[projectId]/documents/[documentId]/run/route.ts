@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  buildKnowledgeContext,
+  buildRetrievalQuery,
+  getKnowledgeRetriever,
+  getKnowledgeSourceStore,
+} from "@/lib/knowledge/server";
 import { getMemoryManager } from "@/lib/memory/server";
 import { runQualityPipeline } from "@/lib/pipeline/run-pipeline";
 import {
@@ -12,6 +18,7 @@ import { jsonError, jsonOk } from "@/lib/workspace/http";
 /**
  * Pipeline entry for the workspace.
  * Receives projectId + documentId only (via URL); storage details stay in services.
+ * RAG: retrieve project knowledge → ContextBuilder → knowledgeContext into pipeline.
  */
 const runBodySchema = z.object({
   brief: documentBriefSchema.partial().optional(),
@@ -40,9 +47,36 @@ export async function POST(request: Request, { params }: Params) {
     }
 
     const brief = resolveDocumentBrief(project, document, body.brief);
+
+    let knowledgeContext = "";
+    let citations: ReturnType<typeof buildKnowledgeContext>["citations"] = [];
+    try {
+      const sources = await getKnowledgeSourceStore().listByProject(projectId);
+      const ready = sources.filter((s) => s.status === "ready" && s.chunkCount > 0);
+      if (ready.length > 0) {
+        const query = buildRetrievalQuery({
+          title: document.title,
+          topic: brief.topic,
+          documentType: document.documentType,
+          pov: brief.pov,
+        });
+        const retrieved = await getKnowledgeRetriever().retrieve({
+          projectId,
+          query,
+        });
+        const built = buildKnowledgeContext(retrieved);
+        knowledgeContext = built.promptBlock;
+        citations = built.citations;
+      }
+    } catch (ragError) {
+      // Additive RAG: generation still works without embeddings/sources.
+      console.error("Knowledge retrieval skipped:", ragError);
+    }
+
     const result = await runQualityPipeline(brief, {
       threshold: body.threshold,
       maxIterations: body.maxIterations,
+      knowledgeContext: knowledgeContext || null,
     });
 
     const updated = await documentService.addVersion(projectId, documentId, {
@@ -66,6 +100,11 @@ export async function POST(request: Request, { params }: Params) {
     return jsonOk({
       document: updated,
       pipeline: result,
+      knowledge: {
+        used: knowledgeContext.length > 0,
+        citationCount: citations.length,
+        citations,
+      },
     });
   } catch (error) {
     return jsonError(error, "Document pipeline failed");

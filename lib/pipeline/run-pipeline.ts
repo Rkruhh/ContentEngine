@@ -63,6 +63,8 @@ export function formatEditorBrief(evaluation: EvalResult): string {
 export type GenerateDraftOptions = {
   /** Pass explicitly to avoid a disk read; `null` disables memory. */
   memory?: UserMemory | null;
+  /** Retrieved knowledge prompt block from ContextBuilder (optional). */
+  knowledgeContext?: string | null;
 };
 
 export async function generateDraft(
@@ -79,8 +81,10 @@ export async function generateDraft(
   }
 
   const memoryBlock = formatMemoryForPrompt(memory);
+  const knowledgeBlock = options.knowledgeContext?.trim() || "";
   const prompt = [
     memoryBlock,
+    knowledgeBlock,
     "Current request — write a short technical piece from this brief:",
     formatBrief(brief),
   ]
@@ -155,6 +159,8 @@ export type QualityPipelineOptions = {
   threshold?: number;
   /** Max revise attempts after the initial draft. Default 3. */
   maxIterations?: number;
+  /** Retrieved knowledge prompt block; empty/undefined skips RAG injection. */
+  knowledgeContext?: string | null;
 };
 
 /** One step in the revision history (1-based iteration index). */
@@ -193,6 +199,7 @@ export async function runQualityPipeline(
 ): Promise<QualityPipelineResult> {
   const threshold = options.threshold ?? DEFAULT_THRESHOLD;
   const maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+  const knowledgeContext = options.knowledgeContext?.trim() || null;
 
   const iterations: PipelineIteration[] = [];
 
@@ -203,8 +210,8 @@ export async function runQualityPipeline(
     memory = null;
   }
 
-  const initialDraft = await generateDraft(brief, { memory });
-  const initialEval = await runEval(initialDraft);
+  const initialDraft = await generateDraft(brief, { memory, knowledgeContext });
+  const initialEval = await runEval(initialDraft, { knowledgeContext });
   const initialOverall = overallScore(initialEval);
 
   iterations.push({
@@ -238,7 +245,7 @@ export async function runQualityPipeline(
 
   for (let attempt = 1; attempt <= maxIterations; attempt++) {
     const candidateDraft = await reviseDraft(bestDraft, bestEval);
-    const candidateEval = await runEval(candidateDraft);
+    const candidateEval = await runEval(candidateDraft, { knowledgeContext });
     const candidateOverall = overallScore(candidateEval);
     // Reject ties and regressions — keep previous draft.
     const accepted = candidateOverall > bestOverall;

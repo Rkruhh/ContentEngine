@@ -93,6 +93,20 @@ export class ProjectService {
     });
   }
 
+  /** Keep denormalized IDs in sync; source of truth remains KnowledgeSourceStore. */
+  async setKnowledgeSourceIds(
+    id: string,
+    knowledgeSourceIds: string[],
+  ): Promise<Project | null> {
+    const existing = await this.projects.getById(id);
+    if (!existing) return null;
+    return this.projects.update({
+      ...existing,
+      knowledgeSourceIds: [...knowledgeSourceIds],
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
   private async toSummary(project: Project): Promise<ProjectSummary> {
     const docs = await this.documents.listByProject(project.id);
     const scores = docs

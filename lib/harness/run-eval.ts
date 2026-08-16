@@ -19,16 +19,34 @@ export function parseEvalJson(raw: string): unknown {
   return JSON.parse(text.slice(start, end + 1));
 }
 
+export type RunEvalOptions = {
+  /** Retrieved knowledge block for grounding (from ContextBuilder). */
+  knowledgeContext?: string | null;
+};
+
 /**
  * Critic step: evaluate a draft into structured feedback.
  * overall_score is always recomputed from metric scores so the pipeline
  * accept/reject gate stays consistent.
  */
-export async function runEval(draft: string): Promise<EvalResult> {
+export async function runEval(
+  draft: string,
+  options: RunEvalOptions = {},
+): Promise<EvalResult> {
+  const knowledge = options.knowledgeContext?.trim();
+  const prompt = [
+    knowledge
+      ? `${knowledge}\n\nUse the sources above when judging technical claims.`
+      : "",
+    `Evaluate this draft:\n\n${draft}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
   const { text } = await generateText({
     model: evalModel,
     system: EVAL_SYSTEM,
-    prompt: `Evaluate this draft:\n\n${draft}`,
+    prompt,
   });
 
   let parsed: unknown;

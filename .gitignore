@@ -17,6 +17,13 @@
 # workspace (projects / documents)
 /data/workspace/**/*.json
 
+# knowledge base (uploads + vectors + source metadata)
+/data/knowledge/**
+
+# local Hugging Face / Transformers.js model caches (if ever written under the repo)
+/.cache/
+**/transformers-cache/
+
 # misc
 .DS_Store
 *.tsbuildinfo
