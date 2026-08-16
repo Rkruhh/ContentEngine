@@ -49,6 +49,7 @@ export class ProjectService {
       preferredAudience: input.preferredAudience?.trim() || null,
       memoryRef: LOCAL_USER_ID,
       knowledgeSourceIds: [],
+      learnedPreferences: [],
     };
     return this.projects.create(project);
   }
@@ -103,6 +104,19 @@ export class ProjectService {
     return this.projects.update({
       ...existing,
       knowledgeSourceIds: [...knowledgeSourceIds],
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  async setLearnedPreferences(
+    id: string,
+    learnedPreferences: Project["learnedPreferences"],
+  ): Promise<Project | null> {
+    const existing = await this.projects.getById(id);
+    if (!existing) return null;
+    return this.projects.update({
+      ...existing,
+      learnedPreferences: [...learnedPreferences],
       updatedAt: new Date().toISOString(),
     });
   }

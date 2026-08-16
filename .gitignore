@@ -12,7 +12,7 @@
 /evals/results/*.json
 
 # local user memory
-/data/memory/*.json
+/data/memory/**
 
 # workspace (projects / documents)
 /data/workspace/**/*.json

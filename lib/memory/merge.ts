@@ -89,6 +89,7 @@ export function mergePreferences(
           ...current.recentLearnings,
         ].slice(0, LIMITS.recentLearnings)
       : current.recentLearnings,
+    learnedPreferences: current.learnedPreferences ?? [],
     updatedAt: new Date().toISOString(),
   };
 }

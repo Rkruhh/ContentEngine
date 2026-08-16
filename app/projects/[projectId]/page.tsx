@@ -213,6 +213,63 @@ export default function ProjectWorkspacePage() {
     }
   }
 
+  async function handleDeleteLearnedPreference(preferenceId: string) {
+    try {
+      const data = await apiSend<{ memory: UserMemory }>("/api/memory", "PATCH", {
+        action: "delete_learned_preference",
+        preferenceId,
+      });
+      setMemory(data.memory);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to delete preference",
+      );
+    }
+  }
+
+  async function handleResetLearnedPreferences() {
+    try {
+      const data = await apiSend<{ memory: UserMemory }>(
+        "/api/memory?learned=1",
+        "DELETE",
+      );
+      setMemory(data.memory);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to reset learned preferences",
+      );
+    }
+  }
+
+  async function handleSaveEdit(content: string) {
+    if (!selected || !currentVersion) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await apiSend<{
+        document: Document;
+        learning: { meaningful: boolean } | null;
+      }>(
+        `/api/projects/${projectId}/documents/${selected.id}/edit`,
+        "POST",
+        {
+          content,
+          baseVersionId: currentVersion.id,
+        },
+      );
+      setDocuments((prev) =>
+        prev.map((doc) => (doc.id === data.document.id ? data.document : doc)),
+      );
+      await loadMemory();
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save edit");
+      throw err;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleKnowledgeUpload(file: File) {
     setError(null);
     const form = new FormData();
@@ -393,11 +450,18 @@ export default function ProjectWorkspacePage() {
                 <DraftView
                   title={
                     currentVersion
-                      ? `Version ${currentVersion.versionNumber}`
+                      ? `Version ${currentVersion.versionNumber}${
+                          currentVersion.source === "user_edit"
+                            ? " (edited)"
+                            : ""
+                        }`
                       : "Content"
                   }
                   markdown={currentVersion?.content ?? ""}
                   emptyLabel="No versions yet — run the pipeline to generate content"
+                  editable={Boolean(currentVersion)}
+                  busy={busy}
+                  onSaveEdit={handleSaveEdit}
                 />
               </SectionCard>
 
@@ -484,6 +548,9 @@ export default function ProjectWorkspacePage() {
             memory={memory}
             loading={memoryLoading}
             onReset={handleResetMemory}
+            onDeleteLearnedPreference={handleDeleteLearnedPreference}
+            onResetLearnedPreferences={handleResetLearnedPreferences}
+            projectLearnedPreferences={project?.learnedPreferences ?? []}
           />
 
           <SectionCard title="Pipeline summary">

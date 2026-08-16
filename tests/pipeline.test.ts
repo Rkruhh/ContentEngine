@@ -95,6 +95,7 @@ describe("pipeline", () => {
         writingGoals: [],
         knownPreferences: [],
         recentLearnings: [],
+        learnedPreferences: [],
         updatedAt: new Date().toISOString(),
       },
     });

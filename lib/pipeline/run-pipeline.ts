@@ -65,6 +65,8 @@ export type GenerateDraftOptions = {
   memory?: UserMemory | null;
   /** Retrieved knowledge prompt block from ContextBuilder (optional). */
   knowledgeContext?: string | null;
+  /** Project-scoped learned prefs injected via the same memory formatter. */
+  projectLearnedPreferences?: import("../memory/preference-observation").LearnedPreference[];
 };
 
 export async function generateDraft(
@@ -80,7 +82,9 @@ export async function generateDraft(
     }
   }
 
-  const memoryBlock = formatMemoryForPrompt(memory);
+  const memoryBlock = formatMemoryForPrompt(memory, {
+    projectLearnedPreferences: options.projectLearnedPreferences,
+  });
   const knowledgeBlock = options.knowledgeContext?.trim() || "";
   const prompt = [
     memoryBlock,
@@ -161,6 +165,7 @@ export type QualityPipelineOptions = {
   maxIterations?: number;
   /** Retrieved knowledge prompt block; empty/undefined skips RAG injection. */
   knowledgeContext?: string | null;
+  projectLearnedPreferences?: import("../memory/preference-observation").LearnedPreference[];
 };
 
 /** One step in the revision history (1-based iteration index). */
@@ -200,6 +205,7 @@ export async function runQualityPipeline(
   const threshold = options.threshold ?? DEFAULT_THRESHOLD;
   const maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
   const knowledgeContext = options.knowledgeContext?.trim() || null;
+  const projectLearnedPreferences = options.projectLearnedPreferences;
 
   const iterations: PipelineIteration[] = [];
 
@@ -210,7 +216,11 @@ export async function runQualityPipeline(
     memory = null;
   }
 
-  const initialDraft = await generateDraft(brief, { memory, knowledgeContext });
+  const initialDraft = await generateDraft(brief, {
+    memory,
+    knowledgeContext,
+    projectLearnedPreferences,
+  });
   const initialEval = await runEval(initialDraft, { knowledgeContext });
   const initialOverall = overallScore(initialEval);
 
